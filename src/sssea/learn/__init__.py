@@ -1,7 +1,6 @@
 """Learning from SSSEA."""
 
 import logging
-from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from typing import Any, NamedTuple, cast
 
@@ -16,7 +15,6 @@ from sssea.api import (
     BinaryAnnotation,
     CategoricalAnnotation,
     Featurizer,
-    Metadata,
     Record,
 )
 from sssea.learn.binary_classification import (
@@ -149,23 +147,3 @@ def stratify_featurize_binary(
                 raise NotImplementedError
 
     return positive, negative
-
-
-def summarize(records: Iterable[Record], *, metadata: Metadata) -> str:
-    """Summarize a PubMed classifier."""
-    from tabulate import tabulate
-
-    dd: defaultdict[str, Counter[str | bool | None]] = defaultdict(Counter)
-    for record in records:
-        for category in metadata.categories:
-            if call := record.annotations.get(category.key):
-                dd[category.key][call.value] += 1
-            else:
-                dd[category.key][None] += 1
-
-    rows = [
-        (category.key, dd[category.key][True], dd[category.key][False], dd[category.key][None])
-        for category in metadata.categories
-    ]
-    t = tabulate(rows, headers=["Category", "Positive", "Negative", "Missing"], tablefmt="github")
-    return t

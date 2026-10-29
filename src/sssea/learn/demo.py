@@ -1,11 +1,41 @@
 """Demo training on catalaix data."""
 
+from collections.abc import Iterable
+
 import click
 import pystow
 from curies import NamableReference, Prefix
 
-from sssea.api import BinaryAnnotationMetadata, Features, IdentifierEntityParser, Metadata, read
-from sssea.learn import predict_binary, summarize, train_binary
+from sssea.api import (
+    BinaryAnnotationMetadata,
+    Features,
+    IdentifierEntityParser,
+    Metadata,
+    Record,
+    get_binary_summary_rows,
+    read,
+)
+from sssea.learn import predict_binary, train_binary
+
+
+def summarize(records: Iterable[Record], *, metadata: Metadata) -> str:
+    """Summarize a PubMed classifier."""
+    from tabulate import tabulate
+
+    t = tabulate(
+        get_binary_summary_rows(records, metadata=metadata),
+        headers=["Category", "Positive", "Negative", "Missing"],
+        tablefmt="github",
+    )
+    return t
+
+
+def _featurize_abstract(reference: NamableReference, features: Features) -> str | None:
+    abstract = features.get("abstract")
+    if reference.name is None and abstract is None:
+        return None
+    text = " ".join(x for x in (reference.name, abstract) if x is not None)
+    return text
 
 
 @click.command()
@@ -52,11 +82,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-def _featurize_abstract(reference: NamableReference, features: Features) -> str | None:
-    abstract = features.get("abstract")
-    if reference.name is None and abstract is None:
-        return None
-    text = " ".join(x for x in (reference.name, abstract) if x is not None)
-    return text
