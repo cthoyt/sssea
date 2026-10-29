@@ -2,8 +2,9 @@
 
 import datetime
 import logging
-from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable, Sequence
+from abc import ABC, abstractmethod
+from collections import Counter
+from collections.abc import Callable, Iterable
 from typing import Annotated, Any, Generic, Literal, TypeAlias, TypeVar
 
 from curies import NamableReference, Prefix
@@ -14,14 +15,15 @@ __all__ = [
     "DEFAULT_ANNOTATION_KEY",
     "BinaryAnnotation",
     "BinaryAnnotationMetadata",
+    "CURIEEntityParser",
     "CategoricalAnnotation",
     "CategoricalAnnotationMetadata",
     "Features",
     "Featurizer",
+    "IdentifierEntityParser",
     "Metadata",
     "Record",
     "read",
-    "stratify_featurize_binary",
 ]
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,45 @@ Features: TypeAlias = dict[str, Any]
 
 #: A function that consumes a features dictionary and produces a feature string
 Featurizer: TypeAlias = Callable[[NamableReference, Features], str | None]
+
+DEFAULT_ENTITY_KEY = "entity"
+
+
+class _EntityParser(BaseModel, ABC):
+    type: Literal["curie", "prefix"]
+    key: str
+
+    @abstractmethod
+    def parse(self, record: dict[str, Any], *, name: str | None = None) -> NamableReference:
+        """Parse the entity."""
+
+
+class CURIEEntityParser(_EntityParser):
+    """A configuration for an entity column represented by CURIEs."""
+    type: Literal["curie"] = "curie"
+
+    def parse(self, record: dict[str, Any], *, name: str | None = None) -> NamableReference:
+        """Parse the entity."""
+        return NamableReference.from_curie(record[self.key], name=name)
+
+
+class IdentifierEntityParser(_EntityParser):
+    """A configuration for an entity column represented by local unique identifiers."""
+
+    type: Literal["prefix"] = "prefix"
+    prefix: Prefix
+
+    def parse(self, record: dict[str, Any], *, name: str | None = None) -> NamableReference:
+        """Parse the entity."""
+        return NamableReference(prefix=self.prefix, identifier=record[self.prefix], name=name)
+
+
+#: A mechanism for extracting the primary entity
+EntityParser = Annotated[CURIEEntityParser | IdentifierEntityParser, Field(discriminator="type")]
+
+
+def _default_entity() -> EntityParser:
+    return CURIEEntityParser(key=DEFAULT_ENTITY_KEY)
 
 
 class _AnnotationMetadata(BaseModel):
@@ -72,12 +113,18 @@ def _default_category() -> list[AnnotationMetadata]:
 
 
 class Metadata(BaseModel):
-    """Configuration for parsing a literature prioritization TSV document."""
+    """Configuration for parsing a literature prioritization TSV document.
+
+    The refence can be configured either with a column name for a curie,
+    or a column name for an identifier
+    """
 
     title: str | None = None
     description: str | None = None
     license: NamableReference | None = None
     creators: list[NamableReference] | None = None
+
+    entity: EntityParser = Field(default_factory=_default_entity)
     categories: list[AnnotationMetadata] = Field(default_factory=_default_category)
 
 
@@ -101,6 +148,8 @@ class CategoricalAnnotation(_Annotation[str]):
     annotation_type: Literal["categorical"] = "categorical"
     value: str
 
+
+# TODO percentage, 5-star/Likert?
 
 #: An annotation, either binary or categorical
 Annotation = Annotated[
@@ -144,11 +193,17 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
         raise ValueError(f"duplicate categories defined in metadata: {duplicates}")
 
     with safe_open_dict_reader(path) as reader:
+        if not reader.fieldnames:  # pragma: no cover
+            raise ValueError("empty file")
+
+        if metadata.entity.key not in reader.fieldnames:
+            raise ValueError(f"missing entity key: {metadata.entity.key}")
+
         if missing_columns := sorted(
             category.key
             for category in metadata.categories
             if not category.nullable
-            and (not reader.fieldnames or category.key not in reader.fieldnames)
+               and (not reader.fieldnames or category.key not in reader.fieldnames)
         ):
             raise ValueError(
                 f"missing columns for required annotations: {missing_columns}, "
@@ -159,13 +214,10 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
         # TODO check that the reader's headers include the defined calls and features
         for i, record in enumerate(reader, start=2):
             name = record.get("name") or record.get("title")
-            if entity_curie := record.get("entity"):
-                reference = NamableReference.from_curie(entity_curie, name=name)
-            elif doi := record.get("doi"):
-                reference = NamableReference(prefix=DOI, identifier=doi, name=name)
-            elif pubmed_id := record.get("pubmed"):
-                reference = NamableReference(prefix=PUBMED, identifier=pubmed_id, name=name)
-            else:
+
+            try:
+                reference = metadata.entity.parse(record, name=name)
+            except ValueError:
                 logger.warning("[%d] no entity found", i)
                 continue
 

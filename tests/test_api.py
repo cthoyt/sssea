@@ -10,6 +10,7 @@ from sssea.api import (
     BinaryAnnotationMetadata,
     CategoricalAnnotation,
     CategoricalAnnotationMetadata,
+    IdentifierEntityParser,
     Metadata,
     Record,
     read,
@@ -69,6 +70,37 @@ class TestSSSEA(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._read_one("<empty document>", metadata=metadata)
 
+    def test_bad_entity_configuration(self) -> None:
+        """Test raising when the expected entity column is not present."""
+        document = dedent(f"""\
+            not-entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07
+            pubmed:30380086	false	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        with self.assertRaises(ValueError):
+            self._read(document)
+
+    def test_skipping_bad_entity(self) -> None:
+        """Test raising when the expected entity column is not present."""
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            	true	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        records = self._read(document)
+        self.assertEqual(0, len(records))
+
+    def test_empty(self) -> None:
+        """Test a binary annotation."""
+        metadata = Metadata(
+            categories=[BinaryAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=True)]
+        )
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            pubmed:30380085		orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        records = self._read(document, metadata=metadata)
+        self.assertEqual(0, len(records))
+
     def test_binary(self) -> None:
         """Test a binary annotation."""
         document = dedent(f"""\
@@ -77,6 +109,31 @@ class TestSSSEA(unittest.TestCase):
             pubmed:30380086	false	orcid:0009-0009-3402-8013	2025-10-07
         """)
         records = self._read(document)
+        self.assertEqual(2, len(records))
+
+        true_record = records[0]
+        self.assertEqual("pubmed:30380085", true_record.reference.curie)
+        self.assertEqual({DEFAULT_ANNOTATION_KEY}, set(true_record.annotations))
+        annotation = true_record.annotations[DEFAULT_ANNOTATION_KEY]
+        self.assertIsInstance(annotation, BinaryAnnotation)
+        self.assertTrue(annotation.value)
+
+        false_record = records[1]
+        self.assertEqual("pubmed:30380086", false_record.reference.curie)
+        self.assertEqual({DEFAULT_ANNOTATION_KEY}, set(false_record.annotations))
+        annotation = false_record.annotations[DEFAULT_ANNOTATION_KEY]
+        self.assertIsInstance(annotation, BinaryAnnotation)
+        self.assertFalse(annotation.value)
+
+    def test_binary_custom_entity(self) -> None:
+        """Test a binary annotation."""
+        metadata = Metadata(entity=IdentifierEntityParser(key="pubmed", prefix="pubmed"))
+        document = dedent(f"""\
+            pubmed	{DEFAULT_ANNOTATION_KEY}	curator	date
+            30380085	true	orcid:0009-0009-3402-8013	2025-10-07
+            30380086	false	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        records = self._read(document, metadata=metadata)
         self.assertEqual(2, len(records))
 
         true_record = records[0]
@@ -123,6 +180,22 @@ class TestSSSEA(unittest.TestCase):
         annotation = record.annotations[DEFAULT_ANNOTATION_KEY]
         self.assertIsInstance(annotation, CategoricalAnnotation)
         self.assertEqual("a", annotation.value)
+
+    def test_categorical_invalid(self) -> None:
+        """Test a binary annotation."""
+        metadata = Metadata(
+            categories=[
+                CategoricalAnnotationMetadata(
+                    key=DEFAULT_ANNOTATION_KEY, nullable=False, allowed=["a", "b", "c"]
+                )
+            ]
+        )
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            pubmed:30380085	d	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        with self.assertRaises(ValueError):
+            self._read(document, metadata=metadata)
 
     def test_multiple(self) -> None:
         """Test a binary annotation."""
