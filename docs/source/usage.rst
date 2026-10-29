@@ -1,0 +1,5 @@
+#######
+ Usage
+#######
+
+.. automodapi:: sssea.api

@@ -1,0 +1,34 @@
+{
+  "template": "https://github.com/cthoyt/cookiecutter-snekpack",
+  "commit": "4c97bbbecc144288e71782ea35330939c75472b9",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "package_name": "sssea",
+      "package_name_stylized": "SSSEA",
+      "short_description": "A simple standard for sharing entity annotations",
+      "author_name": "Charles Tapley Hoyt",
+      "author_github": "cthoyt",
+      "author_email": "cthoyt@gmail.com",
+      "github_organization_name": "cthoyt",
+      "github_repository_name": "sssea",
+      "command_line_interface": true,
+      "pre_commit": false,
+      "gitlab": false,
+      "runner": "just",
+      "citation_file": false,
+      "__not_charlie": "",
+      "__runner": "just",
+      "__runner_uv": "--from rust-just just",
+      "__runner_pip": "rust-just",
+      "__runner_install_uv": "uv tool install rust-just",
+      "__runner_install_pip": "python3 -m pip install rust-just",
+      "__runner_tests": "test",
+      "__gh_slug": "cthoyt/sssea",
+      "__package_name_dashed": "sssea",
+      "_template": "https://github.com/cthoyt/cookiecutter-snekpack",
+      "_commit": "4c97bbbecc144288e71782ea35330939c75472b9"
+    }
+  },
+  "directory": null
+}
