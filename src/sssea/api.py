@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import typing
 from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
@@ -19,7 +20,7 @@ __all__ = [
     "CURIEEntityParser",
     "CategoricalAnnotation",
     "CategoricalAnnotationMetadata",
-    "FeatureConf",
+    "FeatureColumn",
     "Features",
     "Featurizer",
     "IdentifierEntityParser",
@@ -116,8 +117,8 @@ def _default_category() -> list[AnnotationMetadata]:
     return [BinaryAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=False)]
 
 
-class FeatureConf(BaseModel):
-    """A configuration for parsing a feature."""
+class FeatureColumn(BaseModel):
+    """A configuration for parsing a feature column."""
 
     key: str
     datatype: Reference | None = None
@@ -144,7 +145,7 @@ class Metadata(BaseModel):
 
     entity: EntityParser = Field(default_factory=_default_entity)
     categories: list[AnnotationMetadata] = Field(default_factory=_default_category)
-    features: list[FeatureConf] | None = None
+    features: list[FeatureColumn] | None = None
 
 
 class _Annotation(BaseModel, Generic[AnnotationValueType]):
@@ -290,6 +291,8 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                         annotations[category.key] = CategoricalAnnotation(
                             value=value, curator=curator, date=record.get("date")
                         )
+                    case _:  # pragma: no cover
+                        typing.assert_never(category)
 
             if not annotations:
                 logger.warning("[row %d] no calls found", i)
