@@ -9,6 +9,7 @@ from typing import Any, NamedTuple, TypeAlias, cast
 import numpy as np
 import pystow
 from numpy._typing import NDArray
+from scipy import sparse
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -84,8 +85,15 @@ def prepare_binary(
     positive_embeddings, positive_indicator = _embed_text_for_binary(positives, embedder, True)
     negative_embeddings, negative_indicator = _embed_text_for_binary(negatives, embedder, False)
 
-    x = np.vstack((positive_embeddings, negative_embeddings))
+    if sparse.issparse(positive_embeddings):
+        x = sparse.vstack(
+            (positive_embeddings, negative_embeddings),
+            format="csr",
+        )
+    else:
+        x = np.vstack((positive_embeddings, negative_embeddings))
     y = np.hstack((positive_indicator, negative_indicator))
+
     return PreparedData(x, y)
 
 
