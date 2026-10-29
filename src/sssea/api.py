@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Annotated, Any, Generic, Literal, TypeAlias, TypeVar
 
 from curies import NamableReference, Prefix, Reference
-from curies.vocabulary import XSDPrimitive, parse_xsd, xsd_string
+from curies.vocabulary import Primitive, parse_by_datatype
 from pydantic import BaseModel, Field
 from pystow.utils import Source, safe_open_dict_reader
 
@@ -120,12 +120,14 @@ class FeatureConf(BaseModel):
     """A configuration for parsing a feature."""
 
     key: str
-    datatype: Reference = xsd_string
+    datatype: Reference | None = None
     required: bool = False
 
-    def parse(self, value: str) -> XSDPrimitive:
+    def parse(self, value: str) -> Primitive:
         """Parse an XSD primitive."""
-        return parse_xsd(value, self.datatype)
+        if self.datatype is None:
+            return value
+        return parse_by_datatype(value, self.datatype)
 
 
 class Metadata(BaseModel):
