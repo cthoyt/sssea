@@ -1,6 +1,5 @@
 """Demo training on catalaix data."""
 
-
 import click
 import pystow
 from curies import NamableReference
@@ -25,7 +24,6 @@ def main() -> None:
     from tabulate import tabulate
 
     records = read(EXAMPLE_PATH, metadata=EXAMPLE_METADATA)
-
 
     click.echo(
         tabulate(

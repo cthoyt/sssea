@@ -1,5 +1,7 @@
 """Learning from SSSEA."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Iterable, Sequence
 from typing import Any, NamedTuple, TypeAlias, cast
@@ -20,6 +22,7 @@ from ..api import (
 )
 
 __all__ = [
+    "Embedder",
     "predict_binary",
     "prepare_binary",
     "train_binary",
@@ -78,20 +81,20 @@ def prepare_binary(
     if not positives or not negatives:
         raise ValueError("missing one of positives/negatives. check that category is set properly")
 
-    positive_embeddings, positive_indicator = _embed_text(positives, embedder, True)
-    negative_embeddings, negative_indicator = _embed_text(negatives, embedder, False)
+    positive_embeddings, positive_indicator = _embed_text_for_binary(positives, embedder, True)
+    negative_embeddings, negative_indicator = _embed_text_for_binary(negatives, embedder, False)
 
     x = np.vstack((positive_embeddings, negative_embeddings))
     y = np.hstack((positive_indicator, negative_indicator))
     return PreparedData(x, y)
 
 
-def _embed_text(
-    texts: Iterable[str], embedder: Embedder, positive: bool, **kwargs: Any
+def _embed_text_for_binary(
+    texts: Iterable[str], embedder: Embedder, indicator: bool, **kwargs: Any
 ) -> tuple[NDArray[np.float64], NDArray[np.bool]]:
     embeddings = _embed_text_helper(embedder, texts, **kwargs)
-    indicator = np.array([positive] * embeddings.shape[0], dtype=np.bool)
-    return embeddings, indicator
+    indicator_array = np.array([indicator] * embeddings.shape[0], dtype=np.bool)
+    return embeddings, indicator_array
 
 
 def _embed_text_helper(

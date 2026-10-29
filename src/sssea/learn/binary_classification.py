@@ -1,13 +1,17 @@
 """Binary classification utilities."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, NamedTuple, Self, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, cast
 
 import numpy as np
-from numpy._typing import NDArray
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC, LinearSVC
+from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.svm import SVC, LinearSVC
 
 __all__ = [
     "BinaryClassifierResult",
