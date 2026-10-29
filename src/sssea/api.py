@@ -291,7 +291,7 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                 match annotation_column:
                     case BooleanColumn():
                         annotations[annotation_column.key] = BinaryAnnotation(
-                            value=_parse_xsd_boolean_str(value),
+                            value=_parse_bool(value),
                             curator=curator,
                             date=record.get("date"),
                         )
