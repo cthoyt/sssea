@@ -10,8 +10,10 @@ from sssea.api import (
     BinaryAnnotationMetadata,
     CategoricalAnnotation,
     CategoricalAnnotationMetadata,
+    FeatureConf,
     IdentifierEntityParser,
     Metadata,
+    MissingColumnError,
     Record,
     read,
 )
@@ -220,3 +222,44 @@ class TestSSSEA(unittest.TestCase):
         categorical_annotation = record.annotations["categorical_call"]
         self.assertIsInstance(categorical_annotation, CategoricalAnnotation)
         self.assertEqual("a", categorical_annotation.value)
+
+    def test_missing_required_feature_column(self) -> None:
+        """Test a required feature whose column is fully missing."""
+        metadata = Metadata(features=[FeatureConf(key="abstract", required=True)])
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        with self.assertRaises(MissingColumnError):
+            self._read(document, metadata=metadata)
+
+    def test_missing_required_feature_row(self) -> None:
+        """Test a required feature with a missing row."""
+        metadata = Metadata(features=[FeatureConf(key="abstract", required=True)])
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	abstract	curator	date
+            pubmed:30380085	true		orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        with self.assertRaises(ValueError):
+            self._read(document, metadata=metadata)
+
+    def test_feature(self) -> None:
+        """Test an optional feature."""
+        metadata = Metadata(features=[FeatureConf(key="abstract")])
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date	abstract
+            pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07	some text for an abstract
+        """)  # noqa:E501
+        record = self._read_one(document, metadata=metadata)
+        self.assertEqual({"abstract"}, set(record.features))
+        self.assertEqual("some text for an abstract", record.features["abstract"])
+
+    def test_missing_optional_feature_row(self) -> None:
+        """Test an optional feature."""
+        metadata = Metadata(features=[FeatureConf(key="abstract")])
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date	abstract
+            pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        record = self._read_one(document, metadata=metadata)
+        self.assertEqual(set(), set(record.features))
