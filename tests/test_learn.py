@@ -2,12 +2,10 @@
 
 import unittest
 
-import pystow
 from curies import NamableReference
-from pystow.utils import requires_package
 
 from sssea.api import Features, read
-from sssea.learn import train_binary
+from sssea.learn import _embed_text_helper, train_binary
 from sssea.resources import EXAMPLE_METADATA, EXAMPLE_PATH
 
 
@@ -21,6 +19,11 @@ def _featurize_abstract(reference: NamableReference, features: Features) -> str 
 
 class TestLearn(unittest.TestCase):
     """Test learning workflow."""
+
+    def test_bad_embedder(self) -> None:
+        """Test a bad embedder type."""
+        with self.assertRaises(TypeError):
+            _embed_text_helper("nope", ["text"])
 
     def test_learn_tfidf(self) -> None:
         """Test learning workflow."""
@@ -38,16 +41,13 @@ class TestLearn(unittest.TestCase):
             featurizer=_featurize_abstract,
         )
 
-    @requires_package("sentence_transfomers")
     def test_learn_sentence_transformers(self) -> None:
         """Test learning workflow."""
         records = read(EXAMPLE_PATH, metadata=EXAMPLE_METADATA)
 
-        embedder = pystow.get_sentence_transformer()
-
         _classifiers, _results = train_binary(
             records,
             key=EXAMPLE_METADATA.categories[0].key,
-            embedder=embedder,
+            # embedder is implicitly sentence transformer
             featurizer=_featurize_abstract,
         )
