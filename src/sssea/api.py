@@ -4,10 +4,11 @@ import datetime
 import logging
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Annotated, Any, Generic, Literal, TypeAlias, TypeVar
 
-from curies import NamableReference, Prefix
+from curies import NamableReference, Prefix, Reference
+from curies.vocabulary import XSDPrimitive, parse_xsd, xsd_string
 from pydantic import BaseModel, Field
 from pystow.utils import Source, safe_open_dict_reader
 
@@ -18,10 +19,12 @@ __all__ = [
     "CURIEEntityParser",
     "CategoricalAnnotation",
     "CategoricalAnnotationMetadata",
+    "FeatureConf",
     "Features",
     "Featurizer",
     "IdentifierEntityParser",
     "Metadata",
+    "MissingColumnError",
     "Record",
     "read",
 ]
@@ -113,6 +116,18 @@ def _default_category() -> list[AnnotationMetadata]:
     return [BinaryAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=False)]
 
 
+class FeatureConf(BaseModel):
+    """A configuration for parsing a feature."""
+
+    key: str
+    datatype: Reference = xsd_string
+    required: bool = False
+
+    def parse(self, value: str) -> XSDPrimitive:
+        """Parse an XSD primitive."""
+        return parse_xsd(value, self.datatype)
+
+
 class Metadata(BaseModel):
     """Configuration for parsing a literature prioritization TSV document.
 
@@ -127,6 +142,7 @@ class Metadata(BaseModel):
 
     entity: EntityParser = Field(default_factory=_default_entity)
     categories: list[AnnotationMetadata] = Field(default_factory=_default_category)
+    features: list[FeatureConf] | None = None
 
 
 class _Annotation(BaseModel, Generic[AnnotationValueType]):
@@ -183,6 +199,18 @@ DOI = Prefix("doi")
 PUBMED = Prefix("pubmed")
 
 
+class MissingColumnError(ValueError):
+    """A value error raised when columns are missing."""
+
+    def __init__(self, expected: list[str], actual: Sequence[str]) -> None:
+        """Initialize the exception."""
+        self.columns = expected
+        self.actual = actual
+
+    def __str__(self) -> str:
+        return f"missing columns for required annotations: {self.columns}, got {self.actual}"
+
+
 def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Record]:  # noqa:C901
     if metadata is None:
         metadata = Metadata()
@@ -205,10 +233,14 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
             for category in metadata.categories
             if not category.nullable and category.key not in reader.fieldnames
         ):
-            raise ValueError(
-                f"missing columns for required annotations: {missing_columns}, "
-                f"got {reader.fieldnames}"
-            )
+            raise MissingColumnError(missing_columns, reader.fieldnames)
+
+        if missing_feature_columns := sorted(
+            feature.key
+            for feature in metadata.features or []
+            if feature.required and feature.key not in reader.fieldnames
+        ):
+            raise MissingColumnError(missing_feature_columns, reader.fieldnames)
 
         # If name and title in reader columns, raise
         # TODO check that the reader's headers include the defined calls and features
@@ -222,6 +254,13 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                 continue
 
             features: dict[str, Any] = {}
+            for feature in metadata.features or []:
+                value = record.get(feature.key)
+                if value is None:
+                    if feature.required:
+                        raise ValueError
+                    continue
+                features[feature.key] = feature.parse(value)
 
             annotations: dict[str, Annotation] = {}
             for category in metadata.categories:
