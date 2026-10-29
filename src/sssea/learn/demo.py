@@ -16,6 +16,7 @@ from sssea.api import (
     read,
 )
 from sssea.learn import predict_binary, train_binary
+from sssea.resources import EXAMPLE_PATH, EXAMPLE_METADATA
 
 
 def summarize(records: Iterable[Record], *, metadata: Metadata) -> str:
@@ -44,21 +45,8 @@ def main() -> None:
     import pandas as pd
     from tabulate import tabulate
 
-    metadata = Metadata(
-        title="test",
-        description="test",
-        entity=IdentifierEntityParser(key="doi", prefix=Prefix("doi")),
-        categories=[
-            BinaryAnnotationMetadata(key="enzyme paper"),
-            BinaryAnnotationMetadata(key="PET depolymerization"),
-            BinaryAnnotationMetadata(key="PEF depolymerization"),
-            BinaryAnnotationMetadata(key="PEF polymerization"),
-            BinaryAnnotationMetadata(key="PET polymerization"),
-        ],
-    )
-
-    records = read("/Users/cthoyt/dev/catalaix/app/sources/citavi/papers.tsv", metadata=metadata)
-    click.echo(summarize(records, metadata=metadata))
+    records = read(EXAMPLE_PATH, metadata=EXAMPLE_METADATA)
+    click.echo(summarize(records, metadata=EXAMPLE_METADATA))
     embedder = pystow.get_sentence_transformer()
 
     df_to_predict_on = pd.read_csv(
@@ -70,7 +58,7 @@ def main() -> None:
     predict_category = "PEF depolymerization"
 
     _classifiers, results = train_binary(
-        records, category=predict_category, embedder=embedder, featurizer=_featurize_abstract
+        records, key=predict_category, embedder=embedder, featurizer=_featurize_abstract
     )
     click.echo(
         "\n"

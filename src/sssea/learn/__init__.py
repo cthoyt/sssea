@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import Any, NamedTuple, cast
+from typing import Any, NamedTuple, TypeAlias, cast
 
 import numpy as np
 import pystow
@@ -10,17 +10,13 @@ from numpy._typing import NDArray
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from sssea.api import (
+from .binary_classification import BinaryClassifierResult, BinaryClassifiers, predict_binary
+from ..api import (
     DEFAULT_ANNOTATION_KEY,
     BinaryAnnotation,
     CategoricalAnnotation,
     Featurizer,
-    Record,
-)
-from sssea.learn.binary_classification import (
-    BinaryClassifierResult,
-    BinaryClassifiers,
-    predict_binary,
+    Record
 )
 
 __all__ = [
@@ -31,16 +27,19 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+#: Allowed embedders
+Embedder: TypeAlias = TfidfVectorizer | SentenceTransformer
+
 
 def train_binary(
     records: Iterable[Record],
     *,
     featurizer: Featurizer,
-    category: str | None = None,
-    embedder: SentenceTransformer | None = None,
+    key: str | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[BinaryClassifiers, list[BinaryClassifierResult]]:
     """Train a binary classifier based on positive and negative identifier sets."""
-    x, y = prepare_binary(records, category=category, embedder=embedder, featurizer=featurizer)
+    x, y = prepare_binary(records, key=key, embedder=embedder, featurizer=featurizer)
     return _train_binary(x, y)
 
 
@@ -68,16 +67,14 @@ def prepare_binary(
     records: Iterable[Record],
     *,
     featurizer: Featurizer,
-    category: str | None = None,
-    embedder: SentenceTransformer | None = None,
+    key: str | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.bool]]:
     """Prepare SSSEA records for training a binary classifier."""
     if embedder is None:
         embedder = pystow.get_sentence_transformer()
 
-    positives, negatives = stratify_featurize_binary(
-        records, category=category, featurizer=featurizer
-    )
+    positives, negatives = stratify_featurize_binary(records, key=key, featurizer=featurizer)
     if not positives or not negatives:
         raise ValueError("missing one of positives/negatives. check that category is set properly")
 
@@ -90,10 +87,7 @@ def prepare_binary(
 
 
 def _embed_text(
-    texts: Iterable[str],
-    embedder: SentenceTransformer | TfidfVectorizer,
-    positive: bool,
-    **kwargs: Any,
+    texts: Iterable[str], embedder: Embedder, positive: bool, **kwargs: Any
 ) -> tuple[NDArray[np.float64], NDArray[np.bool]]:
     embeddings = _embed_text_helper(embedder, texts, **kwargs)
     indicator = np.array([positive] * embeddings.shape[0], dtype=np.bool)
@@ -101,7 +95,7 @@ def _embed_text(
 
 
 def _embed_text_helper(
-    embedder: SentenceTransformer | TfidfVectorizer, texts: Iterable[str], **kwargs: Any
+    embedder: Embedder, texts: Iterable[str], **kwargs: Any
 ) -> NDArray[np.float64]:
     if isinstance(embedder, SentenceTransformer):
         return cast(
@@ -119,19 +113,19 @@ def stratify_featurize_binary(
     records: Iterable[Record],
     *,
     featurizer: Featurizer,
-    category: str | None = None,
+    key: str | None = None,
 ) -> tuple[Sequence[str], Sequence[str]]:
     """Stratify records based on a binary category."""
     positive = []
     negative = []
-    if category is None:
-        category = DEFAULT_ANNOTATION_KEY
+    if key is None:
+        key = DEFAULT_ANNOTATION_KEY
     for record in records:
         text = featurizer(record.reference, record.features)
         if text is None:
             continue
 
-        match record.annotations.get(category):
+        match record.annotations.get(key):
             case None:
                 continue
             case BinaryAnnotation() as annotation:
