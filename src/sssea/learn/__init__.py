@@ -16,7 +16,7 @@ from ..api import (
     BinaryAnnotation,
     CategoricalAnnotation,
     Featurizer,
-    Record
+    Record,
 )
 
 __all__ = [

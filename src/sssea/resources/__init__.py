@@ -1,13 +1,14 @@
 """Resources."""
 
 from pathlib import Path
-from curies import Prefix, NamableReference
 
-from sssea.api import Metadata, IdentifierEntityParser, BinaryAnnotationMetadata
+from curies import NamableReference, Prefix
+
+from ..api import BinaryAnnotationMetadata, IdentifierEntityParser, Metadata
 
 __all__ = [
-    "EXAMPLE_PATH",
     "EXAMPLE_METADATA",
+    "EXAMPLE_PATH",
 ]
 
 HERE = Path(__file__).parent.resolve()

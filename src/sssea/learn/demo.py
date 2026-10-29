@@ -1,34 +1,13 @@
 """Demo training on catalaix data."""
 
-from collections.abc import Iterable
 
 import click
 import pystow
-from curies import NamableReference, Prefix
+from curies import NamableReference
 
-from sssea.api import (
-    BinaryAnnotationMetadata,
-    Features,
-    IdentifierEntityParser,
-    Metadata,
-    Record,
-    get_binary_summary_rows,
-    read,
-)
+from sssea.api import Features, get_binary_summary_rows, read
 from sssea.learn import predict_binary, train_binary
-from sssea.resources import EXAMPLE_PATH, EXAMPLE_METADATA
-
-
-def summarize(records: Iterable[Record], *, metadata: Metadata) -> str:
-    """Summarize a PubMed classifier."""
-    from tabulate import tabulate
-
-    t = tabulate(
-        get_binary_summary_rows(records, metadata=metadata),
-        headers=["Annotation", "Positive", "Negative", "Missing"],
-        tablefmt="github",
-    )
-    return t
+from sssea.resources import EXAMPLE_METADATA, EXAMPLE_PATH
 
 
 def _featurize_abstract(reference: NamableReference, features: Features) -> str | None:
@@ -46,7 +25,16 @@ def main() -> None:
     from tabulate import tabulate
 
     records = read(EXAMPLE_PATH, metadata=EXAMPLE_METADATA)
-    click.echo(summarize(records, metadata=EXAMPLE_METADATA))
+
+
+    click.echo(
+        tabulate(
+            get_binary_summary_rows(records, metadata=EXAMPLE_METADATA),
+            headers=["Annotation", "Positive", "Negative", "Missing"],
+            tablefmt="github",
+        )
+    )
+
     embedder = pystow.get_sentence_transformer()
 
     df_to_predict_on = pd.read_csv(
