@@ -49,18 +49,49 @@ class TestSSSEA(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._read_one(document)
 
+    def test_raise_on_bad_binary(self) -> None:
+        """Test a binary annotation."""
+        document = dedent(f"""\
+            entity	{DEFAULT_ANNOTATION_KEY}	curator	date
+            pubmed:30380085	invalid-binary-value	orcid:0009-0009-3402-8013	2025-10-07
+        """)
+        with self.assertRaises(ValueError):
+            self._read_one(document)
+
+    def test_raise_on_duplicate_key(self) -> None:
+        """Test a raising when multiple annotations have the same key."""
+        metadata = Metadata(
+            categories=[
+                BinaryAnnotationMetadata(key="key", nullable=False),
+                CategoricalAnnotationMetadata(key="key", nullable=False),
+            ]
+        )
+        with self.assertRaises(ValueError):
+            self._read_one("<empty document>", metadata=metadata)
+
     def test_binary(self) -> None:
         """Test a binary annotation."""
         document = dedent(f"""\
             entity	{DEFAULT_ANNOTATION_KEY}	curator	date
             pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07
+            pubmed:30380086	false	orcid:0009-0009-3402-8013	2025-10-07
         """)
-        record = self._read_one(document)
-        self.assertEqual("pubmed:30380085", record.reference.curie)
-        self.assertEqual({DEFAULT_ANNOTATION_KEY}, set(record.annotations))
-        annotation = record.annotations[DEFAULT_ANNOTATION_KEY]
+        records = self._read(document)
+        self.assertEqual(2, len(records))
+
+        true_record = records[0]
+        self.assertEqual("pubmed:30380085", true_record.reference.curie)
+        self.assertEqual({DEFAULT_ANNOTATION_KEY}, set(true_record.annotations))
+        annotation = true_record.annotations[DEFAULT_ANNOTATION_KEY]
         self.assertIsInstance(annotation, BinaryAnnotation)
         self.assertTrue(annotation.value)
+
+        false_record = records[1]
+        self.assertEqual("pubmed:30380086", false_record.reference.curie)
+        self.assertEqual({DEFAULT_ANNOTATION_KEY}, set(false_record.annotations))
+        annotation = false_record.annotations[DEFAULT_ANNOTATION_KEY]
+        self.assertIsInstance(annotation, BinaryAnnotation)
+        self.assertFalse(annotation.value)
 
     def test_binary_custom_column(self) -> None:
         """Test a binary call."""
