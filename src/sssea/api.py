@@ -1,11 +1,12 @@
 """An implementation of SSSEA."""
 
 import datetime
+import itertools as itt
 import logging
 from abc import ABC, abstractmethod
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
-from typing import Annotated, Any, Generic, Literal, TypeAlias, TypeVar
+from typing import Annotated, Any, Generic, Literal, NamedTuple, TypeAlias, TypeVar
 
 from curies import NamableReference, Prefix
 from pydantic import BaseModel, Field
@@ -255,3 +256,39 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                 continue
 
             yield Record(reference=reference, annotations=annotations, features=features)
+
+
+class BinarySummaryRow(NamedTuple):
+    """A summary for binary annotations."""
+
+    category: str
+    positive: int
+    negative: int
+    missing: int
+
+
+def get_binary_summary_rows(
+    records: Iterable[Record], *, metadata: Metadata
+) -> list[BinarySummaryRow]:
+    """Summarize binary annotations."""
+    binary_annotation_configs = [
+        c for c in metadata.categories if isinstance(c, BinaryAnnotationMetadata)
+    ]
+
+    counters: defaultdict[str, Counter[str | bool | None]] = defaultdict(Counter)
+    for record, binary_annotation_config in itt.product(records, binary_annotation_configs):
+        if call := record.annotations.get(binary_annotation_config.key):
+            counters[binary_annotation_config.key][call.value] += 1
+        else:
+            counters[binary_annotation_config.key][None] += 1
+
+    rows = [
+        BinarySummaryRow(
+            category.key,
+            counters[category.key][True],
+            counters[category.key][False],
+            counters[category.key][None],
+        )
+        for category in metadata.categories
+    ]
+    return rows
