@@ -256,7 +256,7 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
             features: dict[str, Any] = {}
             for feature in metadata.features or []:
                 value = record.get(feature.key)
-                if value is None:
+                if not value:  # catch both explicit none and empty string
                     if feature.required:
                         raise ValueError
                     continue
@@ -265,7 +265,7 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
             annotations: dict[str, Annotation] = {}
             for category in metadata.categories:
                 value = record.get(category.key)
-                if not value:  # cath both explicit none and empty string
+                if not value:  # catch both explicit none and empty string
                     if category.nullable:
                         continue
                     else:
