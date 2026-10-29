@@ -1,5 +1,7 @@
 """Demo training on catalaix data."""
 
+from __future__ import annotations
+
 import click
 import pystow
 from curies import NamableReference
