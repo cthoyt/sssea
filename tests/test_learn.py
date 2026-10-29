@@ -36,7 +36,7 @@ class TestLearn(unittest.TestCase):
 
         _classifiers, _results = train_binary(
             records,
-            key=EXAMPLE_METADATA.categories[0].key,
+            key=EXAMPLE_METADATA.annotations[0].key,
             embedder=embedder,
             featurizer=_featurize_abstract,
         )
@@ -47,7 +47,7 @@ class TestLearn(unittest.TestCase):
 
         _classifiers, _results = train_binary(
             records,
-            key=EXAMPLE_METADATA.categories[0].key,
+            key=EXAMPLE_METADATA.annotations[0].key,
             # embedder is implicitly sentence transformer
             featurizer=_featurize_abstract,
         )

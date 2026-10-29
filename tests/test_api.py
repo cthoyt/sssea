@@ -9,11 +9,11 @@ from curies.vocabulary import xsd_integer, xsd_string
 from sssea.api import (
     DEFAULT_ANNOTATION_KEY,
     BinaryAnnotation,
-    BinaryAnnotationMetadata,
+    BooleanColumn,
     CategoricalAnnotation,
-    CategoricalAnnotationMetadata,
+    CategoricalColumn,
     FeatureColumn,
-    IdentifierEntityParser,
+    IdentifierColumn,
     Metadata,
     MissingColumnError,
     Record,
@@ -66,9 +66,9 @@ class TestSSSEA(unittest.TestCase):
     def test_raise_on_duplicate_key(self) -> None:
         """Test a raising when multiple annotations have the same key."""
         metadata = Metadata(
-            categories=[
-                BinaryAnnotationMetadata(key="key", nullable=False),
-                CategoricalAnnotationMetadata(key="key", nullable=False),
+            annotations=[
+                BooleanColumn(key="key", required=True),
+                CategoricalColumn(key="key", required=True),
             ]
         )
         with self.assertRaises(ValueError):
@@ -95,9 +95,7 @@ class TestSSSEA(unittest.TestCase):
 
     def test_empty(self) -> None:
         """Test a binary annotation."""
-        metadata = Metadata(
-            categories=[BinaryAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=True)]
-        )
+        metadata = Metadata(annotations=[BooleanColumn(key=DEFAULT_ANNOTATION_KEY, required=False)])
         document = dedent(f"""\
             entity	{DEFAULT_ANNOTATION_KEY}	curator	date
             pubmed:30380085		orcid:0009-0009-3402-8013	2025-10-07
@@ -131,7 +129,7 @@ class TestSSSEA(unittest.TestCase):
 
     def test_binary_custom_entity(self) -> None:
         """Test a binary annotation."""
-        metadata = Metadata(entity=IdentifierEntityParser(key="pubmed", prefix="pubmed"))
+        metadata = Metadata(entity=IdentifierColumn(key="pubmed", prefix="pubmed"))
         document = dedent(f"""\
             pubmed	{DEFAULT_ANNOTATION_KEY}	curator	date
             30380085	true	orcid:0009-0009-3402-8013	2025-10-07
@@ -157,7 +155,7 @@ class TestSSSEA(unittest.TestCase):
     def test_binary_custom_column(self) -> None:
         """Test a binary call."""
         key = "key"
-        metadata = Metadata(categories=[BinaryAnnotationMetadata(key=key)])
+        metadata = Metadata(annotations=[BooleanColumn(key=key)])
         document = dedent(f"""\
             entity	{key}	curator	date
             pubmed:30380085	true	orcid:0009-0009-3402-8013	2025-10-07
@@ -172,7 +170,7 @@ class TestSSSEA(unittest.TestCase):
     def test_categorical(self) -> None:
         """Test a binary annotation."""
         metadata = Metadata(
-            categories=[CategoricalAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=False)]
+            annotations=[CategoricalColumn(key=DEFAULT_ANNOTATION_KEY, required=True)]
         )
         document = dedent(f"""\
             entity	{DEFAULT_ANNOTATION_KEY}	curator	date
@@ -188,9 +186,9 @@ class TestSSSEA(unittest.TestCase):
     def test_categorical_invalid(self) -> None:
         """Test a binary annotation."""
         metadata = Metadata(
-            categories=[
-                CategoricalAnnotationMetadata(
-                    key=DEFAULT_ANNOTATION_KEY, nullable=False, allowed=["a", "b", "c"]
+            annotations=[
+                CategoricalColumn(
+                    key=DEFAULT_ANNOTATION_KEY, required=True, allowed=["a", "b", "c"]
                 )
             ]
         )
@@ -204,9 +202,9 @@ class TestSSSEA(unittest.TestCase):
     def test_multiple(self) -> None:
         """Test a binary annotation."""
         metadata = Metadata(
-            categories=[
-                BinaryAnnotationMetadata(key="binary_call", nullable=False),
-                CategoricalAnnotationMetadata(key="categorical_call", nullable=False),
+            annotations=[
+                BooleanColumn(key="binary_call", required=True),
+                CategoricalColumn(key="categorical_call", required=True),
             ]
         )
         document = dedent("""\
