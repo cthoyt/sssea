@@ -52,6 +52,7 @@ class _EntityParser(BaseModel, ABC):
 
 class CURIEEntityParser(_EntityParser):
     """A configuration for an entity column represented by CURIEs."""
+
     type: Literal["curie"] = "curie"
 
     def parse(self, record: dict[str, Any], *, name: str | None = None) -> NamableReference:
@@ -202,8 +203,7 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
         if missing_columns := sorted(
             category.key
             for category in metadata.categories
-            if not category.nullable
-               and (not reader.fieldnames or category.key not in reader.fieldnames)
+            if not category.nullable and category.key not in reader.fieldnames
         ):
             raise ValueError(
                 f"missing columns for required annotations: {missing_columns}, "

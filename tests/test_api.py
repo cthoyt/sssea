@@ -85,7 +85,7 @@ class TestSSSEA(unittest.TestCase):
         document = dedent(f"""\
             entity	{DEFAULT_ANNOTATION_KEY}	curator	date
             	true	orcid:0009-0009-3402-8013	2025-10-07
-        """)
+        """)  # noqa:E101
         records = self._read(document)
         self.assertEqual(0, len(records))
 
