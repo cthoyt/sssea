@@ -24,7 +24,7 @@ def summarize(records: Iterable[Record], *, metadata: Metadata) -> str:
 
     t = tabulate(
         get_binary_summary_rows(records, metadata=metadata),
-        headers=["Category", "Positive", "Negative", "Missing"],
+        headers=["Annotation", "Positive", "Negative", "Missing"],
         tablefmt="github",
     )
     return t
@@ -41,6 +41,7 @@ def _featurize_abstract(reference: NamableReference, features: Features) -> str 
 @click.command()
 def main() -> None:
     """Demonstrate training a binary classifier."""
+    import pandas as pd
     from tabulate import tabulate
 
     metadata = Metadata(
@@ -59,25 +60,31 @@ def main() -> None:
     records = read("/Users/cthoyt/dev/catalaix/app/sources/citavi/papers.tsv", metadata=metadata)
     click.echo(summarize(records, metadata=metadata))
     embedder = pystow.get_sentence_transformer()
+
+    df_to_predict_on = pd.read_csv(
+        "/Users/cthoyt/dev/catalaix/app/prioritization/collated.tsv", sep="\t", dtype=str
+    )
+    df_to_predict_on = df_to_predict_on[["curie", "title"]]
+    title_embeddings = embedder.encode(df_to_predict_on["title"], convert_to_numpy=True)
+
+    predict_category = "PEF depolymerization"
+
     _classifiers, results = train_binary(
-        records, category="PEF depolymerization", embedder=embedder, featurizer=_featurize_abstract
+        records, category=predict_category, embedder=embedder, featurizer=_featurize_abstract
     )
     click.echo(
         "\n"
-        + tabulate([(n, v) for n, _, v in results], headers=["model", "ROC-AUC"], tablefmt="github")
+        + tabulate(
+            [(n, v) for n, _, v in results],
+            headers=["ROC-AUC", predict_category],
+            tablefmt="github",
+        )
     )
-
-    import pandas as pd
-
-    df = pd.read_csv(
-        "/Users/cthoyt/dev/catalaix/app/prioritization/collated.tsv", sep="\t", dtype=str
+    df_to_predict_on[predict_category] = predict_binary(
+        _classifiers.logistic_regression, title_embeddings
     )
-
-    vecs = embedder.encode(df["title"], convert_to_numpy=True)
-    df["PEF depolymerization"] = predict_binary(_classifiers.logistic_regression, vecs)
-    df = df.sort_values("PEF depolymerization", ascending=False)
-    click.echo("\n" + df.head(20).to_markdown(index=False))
-    df.to_csv("pef-depolymerization.tsv", index=False, sep="\t")
+    df_to_predict_on = df_to_predict_on.sort_values(predict_category, ascending=False)
+    click.echo("\n" + df_to_predict_on.head(20).to_markdown(index=False))
 
 
 if __name__ == "__main__":
