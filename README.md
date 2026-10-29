@@ -5,7 +5,7 @@
 -->
 
 <h1 align="center">
-  SSSEA
+  Simple Standard for Sharing Entity Annotations
 </h1>
 
 <p align="center">
@@ -33,7 +33,13 @@
     -->
 </p>
 
-A simple standard for sharing entity annotations.
+A simple standard for sharing entity annotations is a flexible tabular format
+for adding binary or categorical annotations to entities along with curator
+provenance and optional features, e.g., that might be useful for training
+downstream classifiers or regression models.
+
+This was originally motivated by the need to train literature classifiers based
+on the titles and abstracts of scholarly works.
 
 ## 💪 Getting Started
 

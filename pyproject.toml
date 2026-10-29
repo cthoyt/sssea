@@ -47,11 +47,10 @@ license-files = ["LICENSE"]
 
 requires-python = ">=3.11"
 dependencies = [
-    "more-itertools", # missing from itertools in stdlib
-    "tqdm", # progress bars
+    "pydantic", # missing from itertools in stdlib
+    "pystow",
+    "curies",
     "click",
-    "more-click",
-    "typing-extensions",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
@@ -62,7 +61,8 @@ tests = [
 ]
 docs = [
     "sphinx>=9",
-    "sphinx-rtd-theme>=3.0","sphinx-click", 
+    "sphinx-rtd-theme>=3.0",
+    "sphinx-click",
     "sphinx-automodapi",
     # Include if your project uses Pydantic:
     # "autodoc_pydantic",
@@ -77,7 +77,7 @@ typing = [
     { include-group = "tests" },
     "mypy",
     "pydantic",
-    # You will probably have to add additional type stubs here
+    "types-tabulate",
 ]
 docs-lint = [
     { include-group = "docs" },

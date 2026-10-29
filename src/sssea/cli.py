@@ -9,7 +9,7 @@ __all__ = [
 
 @click.command()
 def main() -> None:
-    """CLI for sssea."""
+    """CLI for SSSEA."""
 
 
 if __name__ == "__main__":
