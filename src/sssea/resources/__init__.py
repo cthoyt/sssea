@@ -4,7 +4,7 @@ from pathlib import Path
 
 from curies import NamableReference, Prefix
 
-from ..api import BooleanColumn, IdentifierColumn, Metadata
+from ..api import BooleanColumn, FeatureColumn, IdentifierColumn, Metadata
 
 __all__ = [
     "EXAMPLE_METADATA",
@@ -24,5 +24,8 @@ EXAMPLE_METADATA = Metadata(
         BooleanColumn(key="PEF depolymerization"),
         BooleanColumn(key="PEF polymerization"),
         BooleanColumn(key="PET polymerization"),
+    ],
+    features=[
+        FeatureColumn(key="abstract", required=False),
     ],
 )
