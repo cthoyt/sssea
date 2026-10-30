@@ -16,15 +16,18 @@ from pystow.utils import Source, safe_open_dict_reader
 
 __all__ = [
     "DEFAULT_ANNOTATION_KEY",
+    "Annotation",
+    "AnnotationColumn",
     "BinaryAnnotation",
-    "BinaryAnnotationMetadata",
-    "CURIEEntityParser",
+    "BooleanColumn",
+    "CURIEColumn",
     "CategoricalAnnotation",
-    "CategoricalAnnotationMetadata",
+    "CategoricalColumn",
+    "EntityColumn",
     "FeatureColumn",
     "Features",
     "Featurizer",
-    "IdentifierEntityParser",
+    "IdentifierColumn",
     "Metadata",
     "MissingColumnError",
     "Record",
@@ -46,16 +49,23 @@ Featurizer: TypeAlias = Callable[[NamableReference, Features], str | None]
 DEFAULT_ENTITY_KEY = "entity"
 
 
-class _EntityParser(BaseModel, ABC):
-    type: Literal["curie", "prefix"]
+class Column(BaseModel):
+    """Represents a column."""
+
     key: str
+
+
+class _EntityColumn(Column, ABC):
+    """A column that parses a named entity."""
+
+    type: Literal["curie", "prefix"]
 
     @abstractmethod
     def parse(self, record: dict[str, Any], *, name: str | None = None) -> NamableReference:
         """Parse the entity."""
 
 
-class CURIEEntityParser(_EntityParser):
+class CURIEColumn(_EntityColumn):
     """A configuration for an entity column represented by CURIEs."""
 
     type: Literal["curie"] = "curie"
@@ -65,7 +75,7 @@ class CURIEEntityParser(_EntityParser):
         return NamableReference.from_curie(record[self.key], name=name)
 
 
-class IdentifierEntityParser(_EntityParser):
+class IdentifierColumn(_EntityColumn):
     """A configuration for an entity column represented by local unique identifiers."""
 
     type: Literal["prefix"] = "prefix"
@@ -77,51 +87,49 @@ class IdentifierEntityParser(_EntityParser):
 
 
 #: A mechanism for extracting the primary entity
-EntityParser = Annotated[CURIEEntityParser | IdentifierEntityParser, Field(discriminator="type")]
+EntityColumn: TypeAlias = Annotated[CURIEColumn | IdentifierColumn, Field(discriminator="type")]
 
 
-def _default_entity() -> EntityParser:
-    return CURIEEntityParser(key=DEFAULT_ENTITY_KEY)
+def _default_entity() -> EntityColumn:
+    return CURIEColumn(key=DEFAULT_ENTITY_KEY)
 
 
-class _AnnotationMetadata(BaseModel):
+class _AnnotationColumn(Column):
     annotation_type: AnnotationType
-    key: str
     predicate: Annotated[
         NamableReference | None,
         Field(default=None, description="the predicate connecting the entity to the annotation"),
     ] = None
-    nullable: bool = True
+    required: bool = False
 
 
-class BinaryAnnotationMetadata(_AnnotationMetadata):
+class BooleanColumn(_AnnotationColumn):
     """Information about how a given category should be parsed."""
 
     annotation_type: Literal["binary"] = "binary"
 
 
-class CategoricalAnnotationMetadata(_AnnotationMetadata):
+class CategoricalColumn(_AnnotationColumn):
     """Information about how a given category should be parsed."""
 
     annotation_type: Literal["categorical"] = "categorical"
     allowed: list[str] | None = None
 
 
-AnnotationMetadata = Annotated[
-    BinaryAnnotationMetadata | CategoricalAnnotationMetadata, Field(discriminator="annotation_type")
+AnnotationColumn: TypeAlias = Annotated[
+    BooleanColumn | CategoricalColumn, Field(discriminator="annotation_type")
 ]
 
 DEFAULT_ANNOTATION_KEY = "call"
 
 
-def _default_category() -> list[AnnotationMetadata]:
-    return [BinaryAnnotationMetadata(key=DEFAULT_ANNOTATION_KEY, nullable=False)]
+def _default_annotation() -> list[AnnotationColumn]:
+    return [BooleanColumn(key=DEFAULT_ANNOTATION_KEY, required=True)]
 
 
-class FeatureColumn(BaseModel):
+class FeatureColumn(Column):
     """A configuration for parsing a feature column."""
 
-    key: str
     datatype: Reference | None = None
     required: bool = False
 
@@ -144,8 +152,8 @@ class Metadata(BaseModel):
     license: NamableReference | None = None
     creators: list[NamableReference] | None = None
 
-    entity: EntityParser = Field(default_factory=_default_entity)
-    categories: list[AnnotationMetadata] = Field(default_factory=_default_category)
+    entity: EntityColumn = Field(default_factory=_default_entity)
+    annotations: list[AnnotationColumn] = Field(default_factory=_default_annotation)
     features: list[FeatureColumn] | None = None
 
 
@@ -173,7 +181,7 @@ class CategoricalAnnotation(_Annotation[str]):
 # TODO percentage, 5-star/Likert?
 
 #: An annotation, either binary or categorical
-Annotation = Annotated[
+Annotation: TypeAlias = Annotated[
     BinaryAnnotation | CategoricalAnnotation, Field(discriminator="annotation_type")
 ]
 
@@ -187,7 +195,7 @@ class Record(BaseModel):
 
 
 def read(path: Source, *, metadata: Metadata | None = None) -> list[Record]:
-    """Read a SSSLP TSV file."""
+    """Read a SSSEA TSV file."""
     return list(_read_iter(path, metadata=metadata))
 
 
@@ -220,7 +228,7 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
         metadata = Metadata()
 
     # check that metadata doesn't have duplicate keys
-    counter = Counter(category.key for category in metadata.categories)
+    counter = Counter(annotation_column.key for annotation_column in metadata.annotations)
     duplicates = Counter({k: count for k, count in counter.items() if count > 1})
     if duplicates:
         raise ValueError(f"duplicate categories defined in metadata: {duplicates}")
@@ -233,9 +241,9 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
             raise ValueError(f"missing entity key: {metadata.entity.key}")
 
         if missing_columns := sorted(
-            category.key
-            for category in metadata.categories
-            if not category.nullable and category.key not in reader.fieldnames
+            annotation_column.key
+            for annotation_column in metadata.annotations
+            if annotation_column.required and annotation_column.key not in reader.fieldnames
         ):
             raise MissingColumnError(missing_columns, reader.fieldnames)
 
@@ -257,43 +265,39 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                 logger.warning("[%d] no entity found", i)
                 continue
 
+            curator = (
+                NamableReference.from_curie(curator_curie)
+                if (curator_curie := record.get("curator"))
+                else None
+            )
+
             features: dict[str, Any] = {}
             for feature in metadata.features or []:
-                value = record.get(feature.key)
-                if not value:  # catch both explicit none and empty string
-                    if feature.required:
-                        raise ValueError
-                    continue
-                features[feature.key] = feature.parse(value)
+                if feature_value := record.get(feature.key):
+                    features[feature.key] = feature.parse(feature_value)
+                elif feature.required:
+                    raise ValueError
 
             annotations: dict[str, Annotation] = {}
-            for category in metadata.categories:
-                value = record.get(category.key)
-                if not value:  # catch both explicit none and empty string
-                    if category.nullable:
-                        continue
-                    else:
-                        raise ValueError(f"required to have category: {category.key}")
-
-                curator = (
-                    NamableReference.from_curie(curator_curie)
-                    if (curator_curie := record.get("curator"))
-                    else None
-                )
-
-                match category:
-                    case BinaryAnnotationMetadata():
-                        annotations[category.key] = BinaryAnnotation(
-                            value=_parse_bool(value), curator=curator, date=record.get("date")
-                        )
-                    case CategoricalAnnotationMetadata():
-                        if category.allowed and value not in category.allowed:
-                            raise ValueError
-                        annotations[category.key] = CategoricalAnnotation(
-                            value=value, curator=curator, date=record.get("date")
-                        )
-                    case _:  # pragma: no cover
-                        typing.assert_never(category)
+            for annotation in metadata.annotations:
+                if value := record.get(annotation.key):
+                    match annotation:
+                        case BooleanColumn():
+                            annotations[annotation.key] = BinaryAnnotation(
+                                value=_parse_bool(value),
+                                curator=curator,
+                                date=record.get("date"),
+                            )
+                        case CategoricalColumn():
+                            if annotation.allowed and value not in annotation.allowed:
+                                raise ValueError
+                            annotations[annotation.key] = CategoricalAnnotation(
+                                value=value, curator=curator, date=record.get("date")
+                            )
+                        case _:  # pragma: no cover
+                            typing.assert_never(annotation)
+                elif annotation.required:
+                    raise ValueError(f"required to have annotation column: {annotation.key}")
 
             if not annotations:
                 logger.warning("[row %d] no calls found", i)
@@ -316,7 +320,9 @@ def get_binary_summary_rows(
 ) -> list[BinarySummaryRow]:
     """Summarize binary annotations."""
     binary_annotation_configs = [
-        c for c in metadata.categories if isinstance(c, BinaryAnnotationMetadata)
+        annotation_column
+        for annotation_column in metadata.annotations
+        if isinstance(annotation_column, BooleanColumn)
     ]
 
     counters: defaultdict[str, Counter[str | bool | None]] = defaultdict(Counter)
@@ -328,11 +334,11 @@ def get_binary_summary_rows(
 
     rows = [
         BinarySummaryRow(
-            category.key,
-            counters[category.key][True],
-            counters[category.key][False],
-            counters[category.key][None],
+            annotation_column.key,
+            counters[annotation_column.key][True],
+            counters[annotation_column.key][False],
+            counters[annotation_column.key][None],
         )
-        for category in metadata.categories
+        for annotation_column in metadata.annotations
     ]
     return rows

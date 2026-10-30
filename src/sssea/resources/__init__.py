@@ -4,7 +4,7 @@ from pathlib import Path
 
 from curies import NamableReference, Prefix
 
-from ..api import BinaryAnnotationMetadata, IdentifierEntityParser, Metadata
+from ..api import BooleanColumn, FeatureColumn, IdentifierColumn, Metadata
 
 __all__ = [
     "EXAMPLE_METADATA",
@@ -17,12 +17,15 @@ EXAMPLE_METADATA = Metadata(
     title="Catalaix PET/PEF Papers",
     description="Curation of papers about the polymerization and depolymerization of PET and PEF",
     license=NamableReference(prefix="spdx", identifier="CC0-1.0"),
-    entity=IdentifierEntityParser(key="doi", prefix=Prefix("doi")),
-    categories=[
-        BinaryAnnotationMetadata(key="enzyme paper"),
-        BinaryAnnotationMetadata(key="PET depolymerization"),
-        BinaryAnnotationMetadata(key="PEF depolymerization"),
-        BinaryAnnotationMetadata(key="PEF polymerization"),
-        BinaryAnnotationMetadata(key="PET polymerization"),
+    entity=IdentifierColumn(key="doi", prefix=Prefix("doi")),
+    annotations=[
+        BooleanColumn(key="enzyme paper"),
+        BooleanColumn(key="PET depolymerization"),
+        BooleanColumn(key="PEF depolymerization"),
+        BooleanColumn(key="PEF polymerization"),
+        BooleanColumn(key="PET polymerization"),
+    ],
+    features=[
+        FeatureColumn(key="abstract", required=False),
     ],
 )
