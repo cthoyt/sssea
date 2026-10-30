@@ -4,19 +4,10 @@ from __future__ import annotations
 
 import click
 import pystow
-from curies import NamableReference
 
-from sssea.api import Features, get_binary_summary_rows, read
-from sssea.learn import predict_binary, train_binary
+from sssea.api import get_binary_summary_rows, read
+from sssea.learn import featurize_article, predict_binary, train_binary
 from sssea.resources import EXAMPLE_METADATA, EXAMPLE_PATH
-
-
-def _featurize_abstract(reference: NamableReference, features: Features) -> str | None:
-    abstract = features.get("abstract")
-    if reference.name is None and abstract is None:
-        return None
-    text = " ".join(x for x in (reference.name, abstract) if x is not None)
-    return text
 
 
 @click.command()
@@ -46,7 +37,7 @@ def main() -> None:
     predict_category = "PEF depolymerization"
 
     _classifiers, results = train_binary(
-        records, key=predict_category, embedder=embedder, featurizer=_featurize_abstract
+        records, key=predict_category, embedder=embedder, featurizer=featurize_article
     )
     click.echo(
         "\n"

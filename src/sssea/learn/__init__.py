@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import Any, NamedTuple, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias, cast
 
 import numpy as np
 import pystow
@@ -18,12 +18,19 @@ from ..api import (
     DEFAULT_ANNOTATION_KEY,
     BinaryAnnotation,
     CategoricalAnnotation,
+    Features,
     Featurizer,
     Record,
 )
 
+if TYPE_CHECKING:
+    from curies import NamableReference
+
 __all__ = [
+    "BinaryClassifierResult",
+    "BinaryClassifiers",
     "Embedder",
+    "featurize_article",
     "predict_binary",
     "prepare_binary",
     "train_binary",
@@ -152,3 +159,12 @@ def stratify_featurize_binary(
                 raise NotImplementedError
 
     return positive, negative
+
+
+def featurize_article(reference: NamableReference, features: Features) -> str | None:
+    """Featurize based on the name and abstract."""
+    abstract = features.get("abstract")
+    if reference.name is None and abstract is None:
+        return None
+    text = " ".join(x for x in (reference.name, abstract) if x is not None)
+    return text
