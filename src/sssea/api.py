@@ -262,47 +262,39 @@ def _read_iter(path: Source, *, metadata: Metadata | None = None) -> Iterable[Re
                 logger.warning("[%d] no entity found", i)
                 continue
 
+            curator = (
+                NamableReference.from_curie(curator_curie)
+                if (curator_curie := record.get("curator"))
+                else None
+            )
+
             features: dict[str, Any] = {}
             for feature in metadata.features or []:
-                value = record.get(feature.key)
-                if not value:  # catch both explicit none and empty string
-                    if feature.required:
-                        raise ValueError
-                    continue
-                features[feature.key] = feature.parse(value)
+                if feature_value := record.get(feature.key):
+                    features[feature.key] = feature.parse(feature_value)
+                elif feature.required:
+                    raise ValueError
 
             annotations: dict[str, Annotation] = {}
-            for annotation_column in metadata.annotations:
-                value = record.get(annotation_column.key)
-                if not value:  # catch both explicit none and empty string
-                    if annotation_column.required:
-                        raise ValueError(
-                            f"required to have annotation column: {annotation_column.key}"
-                        )
-                    else:
-                        continue
-
-                curator = (
-                    NamableReference.from_curie(curator_curie)
-                    if (curator_curie := record.get("curator"))
-                    else None
-                )
-
-                match annotation_column:
-                    case BooleanColumn():
-                        annotations[annotation_column.key] = BinaryAnnotation(
-                            value=_parse_bool(value),
-                            curator=curator,
-                            date=record.get("date"),
-                        )
-                    case CategoricalColumn():
-                        if annotation_column.allowed and value not in annotation_column.allowed:
-                            raise ValueError
-                        annotations[annotation_column.key] = CategoricalAnnotation(
-                            value=value, curator=curator, date=record.get("date")
-                        )
-                    case _:  # pragma: no cover
-                        typing.assert_never(annotation_column)
+            for annotation in metadata.annotations:
+                if value := record.get(annotation.key):
+                    match annotation:
+                        case BooleanColumn():
+                            annotations[annotation.key] = BinaryAnnotation(
+                                value=_parse_bool(value),
+                                curator=curator,
+                                date=record.get("date"),
+                            )
+                        case CategoricalColumn():
+                            if annotation.allowed and value not in annotation.allowed:
+                                raise ValueError
+                            annotations[annotation.key] = CategoricalAnnotation(
+                                value=value, curator=curator, date=record.get("date")
+                            )
+                        case _:  # pragma: no cover
+                            typing.assert_never(annotation)
+                elif annotation.required:
+                    raise ValueError(f"required to have annotation column: {annotation.key}")
 
             if not annotations:
                 logger.warning("[row %d] no calls found", i)
