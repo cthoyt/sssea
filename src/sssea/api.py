@@ -16,11 +16,14 @@ from pystow.utils import Source, safe_open_dict_reader
 
 __all__ = [
     "DEFAULT_ANNOTATION_KEY",
+    "Annotation",
+    "AnnotationColumn",
     "BinaryAnnotation",
     "BooleanColumn",
     "CURIEColumn",
     "CategoricalAnnotation",
     "CategoricalColumn",
+    "EntityColumn",
     "FeatureColumn",
     "Features",
     "Featurizer",
@@ -192,7 +195,7 @@ class Record(BaseModel):
 
 
 def read(path: Source, *, metadata: Metadata | None = None) -> list[Record]:
-    """Read a SSSLP TSV file."""
+    """Read a SSSEA TSV file."""
     return list(_read_iter(path, metadata=metadata))
 
 
